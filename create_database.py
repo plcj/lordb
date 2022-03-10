@@ -8,6 +8,7 @@ from pathlib import Path
 # Also allows changing column order in CSV output by changing the order of items in the tuple.
 COLUMNS = (
     'cardCode',
+    'collectible'
     'rarity',
     'regions',
     'name',
@@ -22,7 +23,6 @@ COLUMNS = (
     'associatedCardRefs',
     'descriptionRaw',
     'levelupDescriptionRaw',
-    'collectible'
 )
 
 
@@ -53,7 +53,7 @@ def convert_json_card_to_dict(card_as_json):
         except KeyError as e:
             # Set 1 has 'region' instead of 'regions'
             if 'regions' in e.args:
-                card_as_dict[card_key] = card_as_json['region']
+                card_as_dict[card_key] = [card_as_json['region']]
             else:
                 raise e
 
