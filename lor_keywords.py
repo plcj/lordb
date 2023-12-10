@@ -3,25 +3,6 @@ from pathlib import Path
 import json
 import pandas as pd
 
-DB_COLUMNS = (
-    'cardCode',
-    'collectible',
-    'rarity',
-    'regions',
-    'name',
-    'supertype',
-    'type',
-    'cost',
-    'attack',
-    'health',
-    'keywords',
-    'spellSpeed',
-    'subtypes',
-    'associatedCardRefs',
-    'descriptionRaw',
-    'levelupDescriptionRaw',
-    'set'
-)
 
 def card_sets_df(filename_pattern):
     """
