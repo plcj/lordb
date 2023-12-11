@@ -39,15 +39,21 @@ def kw_count_by_region(sets_df, global_data):
     """
     return a dataframe of keywords and their frequency in each region
     """
-    cards_with_kw_and_reg = pd.DataFrame(sets_df, columns=('cardCode','regions','keywords'))
-    # print(cards_with_kw_and_reg)
-    # print(cards_with_kw_and_reg['regions'])
-    # print(cards_with_kw_and_reg['keywords'])
-    kw_and_reg_exploded = cards_with_kw_and_reg.explode('regions').explode('keywords')
-    kw_and_reg_exploded = kw_and_reg_exploded.fillna("None")
-    # print(kw_and_reg_exploded)
+    cards = pd.DataFrame(sets_df, columns=('cardCode','formats', 'regions','keywords'))
+    ## https://github.com/RiotGames/developer-relations/issues/785
+    # print(cards['formats'].apply(type).unique())
+    # float_rows = cards['formats'].apply(lambda x: isinstance(x, float))
+    # float_data = cards[float_rows]
+    # print(float_data)
+    cards = cards[cards['formats'].apply(lambda formats: isinstance(formats, list) and 'Standard' in formats)]
+    # print(cards)
+    # print(cards['regions'])
+    # print(cards['keywords'])
+    cards_exploded = cards.explode('regions').explode('keywords')
+    cards_exploded = cards_exploded.fillna("None")
+    # print(cards_exploded)
 
-    kw_reg_count = kw_and_reg_exploded.groupby(['regions', 'keywords']).size().reset_index(name='Count')
+    kw_reg_count = cards_exploded.groupby(['regions', 'keywords']).size().reset_index(name='Count')
     kw_reg_count['regions'] = kw_reg_count['regions'].replace(region_nm_abbr_map(global_data))
     # print(kw_reg_count)
 
@@ -62,11 +68,10 @@ def kw_count_by_region(sets_df, global_data):
 
 # todo: function to download set data and extract it
 # todo: look in description for keywords, not just the keywords list
-# todo: filter by only cards in standard
 
 if __name__ == '__main__':
 
-    sets = card_sets_df('set*.json')
+    sets = card_sets_df('test.json')
     global_data = globals_json()
 
     keywords_by_region = kw_count_by_region(sets, global_data)
