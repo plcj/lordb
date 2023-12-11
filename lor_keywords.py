@@ -44,6 +44,7 @@ def description_keywords(description, keywords):
     """
     matches = re.findall(r'<link=keyword.(.*?)>', description)
     matches = [match.replace(" ", "") for match in matches] # because <link=keyword.Last Breath> is a thing
+    # todo ^ should be done by looking up the keyword and replacing it with the nameRef
     # print(matches)
     return matches
 
