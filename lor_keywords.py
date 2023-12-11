@@ -22,7 +22,6 @@ def globals_json():
     """
     with open("data/globals-en_us.json", "r") as gd_file:
         lor_globals = json.load(gd_file)
-    # todo filter globals.name == Missing Translation
     # print(global_data)
     return lor_globals
 
@@ -33,6 +32,8 @@ def keyword_refs(lor_globals):
     """
     refs = pd.DataFrame(lor_globals['keywords'])
     refs = refs['nameRef']
+    # todo filter Missing Translation
+    # todo filter keywords that are regions
     # print(refs)
     return refs
 
@@ -57,6 +58,8 @@ def region_abbreviation_map(lor_globals):
     return r_map
 
 
+# todo preprocess card data to make format consistent across associated cards
+
 def kw_count_by_region(sets_df, lor_globals):
     """
     return a dataframe of keywords and their frequency in each region
@@ -71,20 +74,18 @@ def kw_count_by_region(sets_df, lor_globals):
     # float_rows = cards['formats'].apply(lambda x: isinstance(x, float))
     # print(cards[float_rows])
 
-    # todo filter out associated cards of champions. Formats are not updated on them, so they can have Standard in their formats even if the champ is not in Standard.
-    # todo filter RU region
-
     # Collect keywords from both description and keywordRefs
     keywords = keyword_refs(lor_globals)
     standard_cards['all_keywords'] = standard_cards['description'].apply(lambda description: description_keywords(description, keywords)) + standard_cards['keywordRefs']
 
-    # Remove duplicates
+    # Remove duplicate keywords
     standard_cards['all_keywords'] = standard_cards['all_keywords'].apply(lambda x: list(set(x)))
 
     # Explode keywords and regions
     kw_by_region = standard_cards.explode('regionRefs').explode('all_keywords')
+    # Filter Runeterra region
+    kw_by_region = kw_by_region.query('regionRefs != "Runeterra"')
     kw_by_region = kw_by_region.fillna("None")
-    # print(kw_by_region)
 
     # Count keywords by region
     kw_by_reg_counted = kw_by_region.groupby(['regionRefs', 'all_keywords']).size().reset_index(name='Count')
