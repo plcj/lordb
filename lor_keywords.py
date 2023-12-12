@@ -26,27 +26,29 @@ def globals_json():
     return lor_globals
 
 
-def keyword_refs(lor_globals):
+def relevant_keywords(lor_globals):
     """
-    return list of all keywordRefs
+    return list of all keywords, with some exceptions
     """
-    refs = pd.DataFrame(lor_globals['keywords'])
-    refs = refs['nameRef']
-    # todo filter Missing Translation
-    # todo filter keywords that are regions
-    # print(refs)
-    return refs
+    keywords = pd.DataFrame(lor_globals['keywords'])
+    keywords = keywords[keywords['name'] != "Missing Translation"]
+
+    regions = pd.DataFrame(lor_globals['regions'])
+    keywords = keywords[~keywords['name'].isin(regions['name'])]  # todo might need to also look at nameRefs
+    return keywords
 
 
 def description_keywords(description, keywords):
     """
     return list of keywords found in description
+    names or nameRefs may be used. Try nameRef first, if not found, use name.
     """
     matches = re.findall(r'<link=keyword.(.*?)>', description)
-    matches = [match.replace(" ", "") for match in matches] # because <link=keyword.Last Breath> is a thing
-    # todo ^ should be done by looking up the keyword and replacing it with the nameRef
-    # print(matches)
-    return matches
+    nameref_list = []
+    for match in matches:
+        nameref_values = keywords.loc[keywords['name'] == match, 'nameRef'].values
+        nameref_list.append(nameref_values[0] if nameref_values.size > 0 else match)
+    return nameref_list
 
 
 def region_abbreviation_map(lor_globals):
@@ -65,41 +67,29 @@ def kw_count_by_region(sets_df, lor_globals):
     """
     return a dataframe of keywords and their frequency in each region
     """
+    # Get cards. Limit to those in Standard
     cards = pd.DataFrame(sets_df, columns=['cardCode', 'formats', 'regionRefs', 'keywordRefs', 'description'])
-
-    # Limit cards to those in Standard
     standard_cards = cards[cards['formats'].apply(lambda formats: isinstance(formats, list) and 'Standard' in formats)].copy()
-    ## Why isinstance(formats, list)?
-    ## https://github.com/RiotGames/developer-relations/issues/785
-    # print(cards['formats'].apply(type).unique())
-    # float_rows = cards['formats'].apply(lambda x: isinstance(x, float))
-    # print(cards[float_rows])
+    ## Why isinstance(formats, list)? https://github.com/RiotGames/developer-relations/issues/785 When not present, pandas makes it NaN, which internally is a float
 
-    # Collect keywords from both description and keywordRefs
-    keywords = keyword_refs(lor_globals)
+    ## Preprocessing before counting
+    keywords = relevant_keywords(lor_globals)
+    # Collect keywords from both description and keywordRefs of each card
     standard_cards['all_keywords'] = standard_cards['description'].apply(lambda description: description_keywords(description, keywords)) + standard_cards['keywordRefs']
+    standard_cards['all_keywords'] = standard_cards['all_keywords'].apply(lambda x: list(set(x)))  # Remove duplicates
+    standard_cards = standard_cards.explode('regionRefs').explode('all_keywords')  # Explode lists into rows
+    standard_cards = standard_cards.fillna("None")  # not all cards have keywords, and we don't want them showing up as NaN
+    standard_cards = standard_cards.query('regionRefs != "Runeterra"')  # Remove Runeterra region
+    standard_cards = standard_cards.replace(region_abbreviation_map(lor_globals)) # Replace region names with abbreviations
 
-    # Remove duplicate keywords
-    standard_cards['all_keywords'] = standard_cards['all_keywords'].apply(lambda x: list(set(x)))
-
-    # Explode keywords and regions
-    kw_by_region = standard_cards.explode('regionRefs').explode('all_keywords')
-    # Filter Runeterra region
-    kw_by_region = kw_by_region.query('regionRefs != "Runeterra"')
-    kw_by_region = kw_by_region.fillna("None")
-
-    # Count keywords by region
-    kw_by_reg_counted = kw_by_region.groupby(['regionRefs', 'all_keywords']).size().reset_index(name='Count')
-
-    # Replace regionRefs with abbreviations
-    kw_by_reg_counted['regionRefs'] = kw_by_reg_counted['regionRefs'].replace(region_abbreviation_map(lor_globals))
-    # print(kw_by_reg_counted)
-
-    regions = kw_by_reg_counted['regionRefs'].unique()
-    final_result_frame = pd.DataFrame([(r, k) for r in regions for k in keywords], columns=['regionRefs', 'all_keywords'])
-    result = pd.merge(final_result_frame, kw_by_reg_counted, on=['regionRefs', 'all_keywords'], how='left')
+    ## Count keywords by region
+    kw_by_reg_with_count = standard_cards.groupby(['regionRefs', 'all_keywords']).size().reset_index(name='Count')
+    regions = kw_by_reg_with_count['regionRefs'].unique()
+    final_result_frame = pd.DataFrame([(r, k) for r in regions for k in keywords['nameRef']], columns=['regionRefs', 'all_keywords'])
+    result = pd.merge(final_result_frame, kw_by_reg_with_count, on=['regionRefs', 'all_keywords'], how='left')
+    result = result.rename(columns={'regionRefs': 'Region', 'all_keywords': 'Keyword'})
     result['Count'] = result['Count'].fillna(0).astype(int)
-    # print(result)
+
     return result
 
 
